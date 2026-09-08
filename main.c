@@ -1,19 +1,11 @@
 #include <stdio.h>
 #include <math.h>
-#include <direct.h>
-
 /*
 I want to implement crossfade between these chords.
  */
 
 int main()
 {
-    char cwd[1024];
-
-    if (_getcwd(cwd, sizeof(cwd)) != NULL)
-    {
-        printf("Working directory: %s\n", cwd);
-    }
     float samples_ps = 44100.00;
     int max_encode = 32767; // 16-bit PCM, so each side of the wave should be at most 2^15:- 0->32767
     int duration = 2;
@@ -50,12 +42,28 @@ int main()
             // the notion here is we need to express time relative to where we are at in terms of our sampling.
             // At half the samples, we are at half the time, and so on
             time = current_sample / samples_ps;
+            short int sample_next = 0;
+            float current_weight, next_weight;
+
             for (int current_angle = 0; current_angle < 3; current_angle++)
             {
                 angle[outer][current_angle] = (2 * M_PI * chord_freq[outer][current_angle]) * time;
+                if (current_sample >= fade_start && outer<3)
+                {
+                    angle[outer + 1][current_angle] = (2 * M_PI * chord_freq[outer + 1][current_angle]) * time;
+                }
             }
+
+            // sin function is what gives the amplitude of the wave at a particular angle.
             sample = (sin(angle[outer][0]) * max_encode + sin(angle[outer][1]) * max_encode + sin(angle[outer][2]) * max_encode) / 3;
 
+            if (current_sample >= fade_start && outer < 3)
+            {
+                sample_next = (sin(angle[outer + 1][0]) * max_encode + sin(angle[outer + 1][1]) * max_encode + sin(angle[outer + 1][2]) * max_encode) / 3;
+                current_weight = 1 - ((current_sample - fade_start) / (fade_end-fade_start));
+                next_weight = 1 - current_weight;
+                sample = sample * current_weight + sample_next * next_weight;
+            }
             fwrite(&sample, 2, 1, f);
             current_sample = current_sample + 1;
         }
