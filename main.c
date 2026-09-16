@@ -2,23 +2,45 @@
 #include <stdint.h>
 #include <math.h>
 
+
+/*
+Positions   Sample Value         Description
+1 - 4       "RIFF"               Marks the file as a riff file. Characters are each 1. byte long.
+5 - 8       File size (integer)  Size of the overall file - 8 bytes, in bytes (32-bit integer). Typically, you'd fill this in after creation.
+9 -12       "WAVE"               File Type Header. For our purposes, it always equals "WAVE".
+13-16       "fmt "               Format chunk marker. Includes trailing null
+17-20       16                   Length of format data as listed above
+21-22       1                    Type of format (1 is PCM) - 2 byte integer
+23-24       2                    Number of Channels - 2 byte integer
+25-28       44100                Sample Rate - 32 bit integer. Common values are 44100 (CD), 48000 (DAT). Sample Rate = Number of Samples per second, or Hertz.
+29-32       176400               (Sample Rate * BitsPerSample * Channels) / 8.
+33-34       4                    (BitsPerSample * Channels) / 8.1 - 8 bit mono2 - 8 bit stereo/16 bit mono4 - 16 bit stereo
+35-36       16                   Bits per sample
+37-40       "data"               "data" chunk header. Marks the beginning of the data section.
+41-44       File size (data)     Size of the data section, i.e. file size - 44 bytes header.
+*/
 typedef struct
 {
-    char riff[4];       // "RIFF"
-    uint32_t file_size; // File size - 8
-    char wave[4];       // "WAVE"
+    char riff[4];            // "RIFF" — identifies this as a RIFF container
+    uint32_t file_size;      // Overall file size minus 8 bytes, in bytes
 
-    char fmt[4];              // "fmt "
-    uint32_t fmt_size;        // 16 for PCM
-    uint16_t audio_format;    // 1 = PCM
-    uint16_t num_channels;    // 1 = mono
-    uint32_t sample_rate;     // 44100
-    uint32_t byte_rate;       // sample_rate * channels * bits/8
-    uint16_t block_align;     // channels * bits/8
-    uint16_t bits_per_sample; // 16
+    char wave[4];            // "WAVE" — identifies the RIFF file as a WAV file
 
-    char data[4];       // "data"
-    uint32_t data_size; // Number of bytes of PCM data
+    char fmt[4];             // "fmt " — marks the beginning of the format chunk
+    uint32_t fmt_size;       // Size of the format chunk data (16 bytes for PCM)
+
+    uint16_t audio_format;   // Audio format: 1 = PCM
+    uint16_t num_channels;   // Number of audio channels: 1 = mono, 2 = stereo
+
+    uint32_t sample_rate;    // Samples per second, e.g. 44100 Hz
+    uint32_t byte_rate;      // Bytes per second = sample_rate * num_channels * bits_per_sample / 8
+
+    uint16_t block_align;    // Bytes per sample frame = num_channels * bits_per_sample / 8
+    uint16_t bits_per_sample;// Number of bits used to represent each individual sample
+
+    char data[4];            // "data" — marks the beginning of the PCM data chunk
+    uint32_t data_size;      // Number of bytes of PCM audio data following this header
+
 } WAVHeader;
 
 #define NUM_CHORDS 4
