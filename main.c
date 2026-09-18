@@ -98,50 +98,49 @@ int main()
 
         while (current_sample < samples_per_chord)
         {
-
-            short int sample_left = 0;
-            short int sample_right = 0;
-            // the notion here is we need to express time relative to where we are at in terms of our sampling.
-            // At half the samples, we are at half the time, and so on
+            // 1. Calculate base mono chord signal
+            float mono_sample = 0.0f;
             time = current_sample / samples_ps;
-            short int sample_next_left = 0;
-            short int sample_next_right = 0;
-            float current_weight, next_weight;
 
-            /*
-            Basically, generate a sample via the formula sin(2pi*f*(n/44100))
-
-            This then normalizes the max_encoding we have for PCM-16.
-
-            Now, since we are generating these for 3 frequencies per chord, we iterate over this thrice,
-            and take an average of these to represent their weight equally in the chord_sample
-            */
             for (int i = 0; i < 3; i++)
             {
-                sample_left += (sin((2 * M_PI * chord_freq[outer][i]) * time)) * max_encode / 3;
-                sample_right += (sin((2 * M_PI * chord_freq[outer][i]) * time)) * max_encode / 3;
+                mono_sample += (sin((2 * M_PI * chord_freq[outer][i]) * time)) * max_encode / 3.0f;
             }
 
-            /*
-            Cross fade zone!
-
-            This means we are in the last 10% of time left for the chord's life.
-            */
-            if (current_sample >= fade_start && outer < 3)
+            // 2. Handle crossfade into the next chord
+            if (current_sample >= fade_start && outer < (NUM_CHORDS - 1))
             {
+                float mono_next = 0.0f;
                 for (int i = 0; i < 3; i++)
                 {
-                    sample_next_left += (sin((2 * M_PI * chord_freq[outer + 1][i]) * time)) * max_encode / 3;
-                    sample_next_right += (sin((2 * M_PI * chord_freq[outer + 1][i]) * time)) * max_encode / 3;
+                    mono_next += (sin((2 * M_PI * chord_freq[outer + 1][i]) * time)) * max_encode / 3.0f;
                 }
-                current_weight = 1 - ((current_sample - fade_start) / (fade_end - fade_start));
-                next_weight = 1 - current_weight;
-                sample_left = sample_left * current_weight + sample_next_left * next_weight;
-                sample_right = sample_right * current_weight + sample_next_right * next_weight;
+
+                float current_weight = 1.0f - ((current_sample - fade_start) / (fade_end - fade_start));
+                float next_weight = 1.0f - current_weight;
+
+                mono_sample = (mono_sample * current_weight) + (mono_next * next_weight);
             }
+
+            // 1. Calculate the pan fraction (0.0 to 1.0)
+            float pan = (float)current_sample / (float)(samples_per_chord - 1);
+
+            // 2. Convert the pan position to an angle from 0 to PI/2 radians (0 to 90 degrees)
+            float angle = pan * (M_PI / 2.0f);
+
+            // 3. Calculate equal power weights
+            float weight_left = (outer%2 == 0) ? cosf(angle) : sinf(angle);
+            float weight_right = (outer%2 == 0) ? sinf(angle) : cosf(angle);
+
+            // 4. Apply weights to your mixed sample
+            short int sample_left = (short int)(mono_sample * weight_left);
+            short int sample_right = (short int)(mono_sample * weight_right);
+
+            // 4. Write stereo frame to file
             fwrite(&sample_left, sizeof(sample_left), 1, f);
             fwrite(&sample_right, sizeof(sample_right), 1, f);
-            current_sample = current_sample + 1;
+
+            current_sample++;
         }
     }
     fclose(f);
